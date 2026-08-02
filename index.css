@@ -60,6 +60,7 @@ a {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 2rem;
 }
 
@@ -178,8 +179,7 @@ a {
 @media (max-width: 480px) {
   .page-wrapper {
     padding: 1.5rem;
-    align-items: flex-end;
-    padding-bottom: 6rem;
+    padding-bottom: 4rem;
   }
 
   .title {
