@@ -187,11 +187,20 @@ a {
    ======================================== */
 @media (max-width: 480px) {
   .page-wrapper {
-    padding: 1.5rem;
+    padding: 1.25rem;
     padding-bottom: 4rem;
   }
 
   .title {
-    font-size: 1.75rem;
+    font-size: clamp(2rem, 8.5vw, 2.35rem);
+    text-align: center;
+  }
+
+  .links {
+    font-size: 0.75rem;
+  }
+
+  .link {
+    gap: 0.3rem;
   }
 }
