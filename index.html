@@ -95,11 +95,12 @@
             let regPoints = [];
             let regTargetLine = { slope: 0, intercept: 0, r: 0, r2: 0 };
             let fixedLine = { slope: 0, intercept: 0, r: 0, r2: 0 };
-            let regDrawProgress = 0;
-            let regTimer = 0;
             let currentCycleSlope = -0.3;
             let currentCycleCenterY = 0;
-            const REDRAW_INTERVAL = 761; // Complete cycle duration (~12.7 seconds)
+            const CYCLE_DURATION = 4500; // Complete cycle duration in ms (4.5 seconds)
+            let cycleStartTime = 0;
+            let lastSpawnTime = 0;
+            let lastTimestamp = 0;
 
             function generateDataSet() {
                 regPoints = [];
@@ -112,9 +113,9 @@
                 }
             }
 
-            function initRegression() {
-                regTimer = 0;
-                regDrawProgress = 0;
+            function initRegression(timestamp = performance.now()) {
+                cycleStartTime = timestamp;
+                lastSpawnTime = timestamp;
                 generateDataSet();
                 calcRegression();
                 fixedLine.slope = regTargetLine.slope;
@@ -169,20 +170,27 @@
                 regTargetLine.r2 = Math.pow(regTargetLine.r, 2);
             }
 
-            function drawRegression() {
+            function drawRegression(timestamp) {
                 ctx.clearRect(0, 0, w, h);
 
-                regTimer++;
-                // Spawn a new background point every 65 frames
-                if (regTimer % 65 === 0) {
+                if (!lastTimestamp) lastTimestamp = timestamp;
+                const dt = Math.min(timestamp - lastTimestamp, 100);
+                lastTimestamp = timestamp;
+
+                if (!cycleStartTime) cycleStartTime = timestamp;
+
+                // Spawn a new background point every ~383 ms
+                if (timestamp - lastSpawnTime > 383) {
                     addRegressionPoint();
                     if (regPoints.length > 75) regPoints.shift();
+                    lastSpawnTime = timestamp;
                 }
 
-                const cycleFrame = regTimer % REDRAW_INTERVAL;
+                const cycleTime = (timestamp - cycleStartTime) % CYCLE_DURATION;
+                const prevCycleTime = ((timestamp - dt) - cycleStartTime) % CYCLE_DURATION;
 
-                // At cycle start (frame 0), generate a new trend, calculate metrics, and freeze line
-                if (cycleFrame === 0) {
+                // At cycle start, generate a new trend, calculate metrics, and freeze line
+                if (cycleTime < prevCycleTime || prevCycleTime < 0) {
                     generateDataSet();
                     calcRegression();
                     fixedLine.slope = regTargetLine.slope;
@@ -192,41 +200,42 @@
                 }
 
                 // ----------------------------------------------------
-                // CYCLE PHASES:
-                // 1. Points Fade In: 0 to 100 frames (~1.7s)
-                // 2. Points Only Delay: 100 to 220 frames (~2.0s)
-                // 3. Regression Line Fade In: 220 to 320 frames (~1.7s)
-                // 4. Hold Together: 320 to 651 frames (~5.5s)
-                // 5. Fade Out Together: 651 to 761 frames (~1.8s)
+                // CYCLE PHASES (Target ~4.5s total cycle, Time-based in ms):
+                // 1. Points Fade In: 0 to 591 ms (~0.59s)
+                // 2. Points Only Delay: 591 to 1301 ms (~0.71s)
+                // 3. Regression Line Fade In: 1301 to 1893 ms (~0.59s)
+                // 4. Hold Together: 1893 to 3850 ms (~1.96s)
+                // 5. Fade Out Together: 3850 to 4500 ms (~0.65s)
                 // ----------------------------------------------------
 
                 // Scatter points opacity factor
                 let pointAlphaFactor = 0;
-                if (cycleFrame < 100) {
-                    pointAlphaFactor = cycleFrame / 100;
-                } else if (cycleFrame < 651) {
+                if (cycleTime < 591) {
+                    pointAlphaFactor = cycleTime / 591;
+                } else if (cycleTime < 3850) {
                     pointAlphaFactor = 1;
                 } else {
-                    pointAlphaFactor = (REDRAW_INTERVAL - cycleFrame) / 110;
+                    pointAlphaFactor = (CYCLE_DURATION - cycleTime) / 650;
                 }
 
-                // Regression line opacity (starts after delay at frame 220)
+                // Regression line opacity (starts after delay at 1301 ms)
                 const maxLineOpacity = 0.28;
                 let lineOpacity = 0;
 
-                if (cycleFrame < 220) {
+                if (cycleTime < 1301) {
                     lineOpacity = 0;
-                } else if (cycleFrame < 320) {
-                    lineOpacity = ((cycleFrame - 220) / 100) * maxLineOpacity;
-                } else if (cycleFrame < 651) {
+                } else if (cycleTime < 1893) {
+                    lineOpacity = ((cycleTime - 1301) / 592) * maxLineOpacity;
+                } else if (cycleTime < 3850) {
                     lineOpacity = maxLineOpacity;
                 } else {
-                    lineOpacity = ((REDRAW_INTERVAL - cycleFrame) / 110) * maxLineOpacity;
+                    lineOpacity = ((CYCLE_DURATION - cycleTime) / 650) * maxLineOpacity;
                 }
 
-                // Render scatter plot points (fade in first)
+                // Render scatter plot points (fade in first, frame-rate independent lerp)
+                const lerpFactor = 1 - Math.exp(-dt * 0.008);
                 regPoints.forEach(p => {
-                    p.opacity += (p.targetOpacity - p.opacity) * 0.05;
+                    p.opacity += (p.targetOpacity - p.opacity) * lerpFactor;
                     const finalOpacity = p.opacity * pointAlphaFactor;
                     if (finalOpacity > 0.003) {
                         ctx.beginPath();
@@ -275,7 +284,7 @@
             });
 
             initRegression();
-            drawRegression();
+            requestAnimationFrame(drawRegression);
 
         })();
     </script>
